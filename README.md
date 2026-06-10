@@ -60,6 +60,7 @@ This project provides the essential tools to kickstart your robotics development
     cd ~/ros2_ws/src
     git clone https://github.com/vybhav-ibr/genesis_ros.git .
     ```
+    After cloning, initialize the included submodules with `git submodule update --init --recursive`.
     > **Use the 'humble' barnch for that distro, for every-other distro use the main branch**
 
 3.  **Install Dependencies**
