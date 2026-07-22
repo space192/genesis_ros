@@ -95,22 +95,26 @@ class GridLidarSensor(BaseSensor):
         pattern_cfg = gs.sensors.GridPattern(
             resolution=resolution, size=grid_size, direction=ray_direction_euler
         )
-        grid_lidar = self.scene.add_sensor(
-            gs.sensors.Lidar(
-                pattern=pattern_cfg,
-                entity_idx=entity_idx,
-                link_idx_local=link_idx_local,
-                return_world_frame=return_points_in_world_frame,
-                pos_offset=pos_offset,
-                euler_offset=euler_offset,
-                min_range=min_range,
-                max_range=max_range,
-                draw_debug=draw_debug,
+        # Genesis 1.2.3's Raycaster validates debug_sphere_radius > 0, so only
+        # pass the debug kwargs when drawing is actually enabled.
+        grid_lidar_kwargs = dict(
+            pattern=pattern_cfg,
+            entity_idx=entity_idx,
+            link_idx_local=link_idx_local,
+            return_world_frame=return_points_in_world_frame,
+            pos_offset=pos_offset,
+            euler_offset=euler_offset,
+            min_range=min_range,
+            max_range=max_range,
+            draw_debug=draw_debug,
+        )
+        if draw_debug:
+            grid_lidar_kwargs.update(
                 debug_sphere_radius=draw_point_radius,
                 debug_ray_start_color=ray_start_color,
                 debug_ray_hit_color=ray_hit_color,
             )
-        )
+        grid_lidar = self.scene.add_sensor(gs.sensors.Lidar(**grid_lidar_kwargs))
 
         self.sensor_object = grid_lidar
 

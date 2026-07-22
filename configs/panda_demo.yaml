@@ -109,6 +109,40 @@ robots:
 
     sensors: # all the sensor configs are in the sensor_configs.yaml section
     # ----------------------------
+    # CAMERA (RGB). Added to verify the camera sensor path works on Genesis 1.2.3.
+    # ----------------------------
+      - name: front_cam
+        general_sensor_options:
+          sensor_type: cam
+          delay: 0.0
+          update_ground_truth_only: false
+          draw_debug: false
+        ros_options:
+          frame_id: panda_link7
+          frequency: 5.0
+          qos_history: keep_last
+          qos_depth: 10
+          qos_reliability: reliable
+          qos_durability: volatile
+        rigid_options:
+          link: panda_link7
+          pos_offset: [0.0, 0.0, 0.0]
+          euler_offset: [0.0, 0.0, 0.0]
+        camera_types: [rgb]
+        model: pinhole
+        res: [320, 240]
+        fov: 30.0
+        aperture: 2.8
+        focus_dist: 0.0
+        GUI: false
+        spp: 64
+        denoise: false
+        near: 0.05
+        far: 10.0
+        add_noise: false
+        noise_mean: 0.0
+        noise_std: 0.01
+    # ----------------------------
     # CAMERA (RGB, Depth, segmentation, normal.)
     # Although multiple camera types can be specified for one section, it is recommneded to set one camera type per sensor
     # i.e. if you want RGB and Depth, create two sensors with same transform but different camera_types

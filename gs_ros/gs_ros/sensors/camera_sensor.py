@@ -128,8 +128,15 @@ class CameraSensor(BaseSensor):
                         )
                         image_publisher.publish(msg)
 
-        cam = gs.vis.camera.Camera(
-            visualizer=self.scene.visualizer,
+        # Genesis 1.2.3: cameras must be added via scene.add_camera() BEFORE
+        # scene.build() (which then builds the camera + wires up the rasterizer
+        # context with its scene reference). The 0.3.5 pattern of constructing
+        # gs.vis.camera.Camera(visualizer=...) + cam.build() directly leaves the
+        # rasterizer context's .scene unset -> "RasterizerContext has no
+        # attribute 'scene'" on render. add_sensor() is called from the bridge
+        # __init__ (during config load), which runs before scene.build(), so
+        # scene.add_camera() is safe here.
+        cam = self.scene.add_camera(
             model=self.sensor_config.get("model", "pinhole"),
             res=self.sensor_config.get("res", (320, 320)),
             up=self.sensor_config.get("up", (0.0, 0.0, 1.0)),
@@ -161,7 +168,9 @@ class CameraSensor(BaseSensor):
         T[:3, :3] = quat_to_R(euler_to_quat(np.array(euler)))
         T[:3, 3] = pos
 
-        self.scene._visualizer._cameras.append(cam)
+        # scene.add_camera() registers the camera with the visualizer, so no
+        # manual scene._visualizer._cameras.append is needed (it would
+        # double-register).
         qos_profile = create_qos_profile(
             self.ros_options.get("qos_history"),
             self.ros_options.get("qos_depth"),

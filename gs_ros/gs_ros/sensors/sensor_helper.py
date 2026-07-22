@@ -15,22 +15,41 @@ def add_sensor_noise(arr, mean=0.0, std=1.0):
     return noisy.astype(arr.dtype)  # round/truncate implicitly
 
 
+def _read_raycaster(raycaster):
+    """Read a raycaster and return a numpy array of hit points, shape (N, 3).
+
+    Genesis 1.2.3's Raycaster.read() returns a RaycasterReturnType (a 2-tuple):
+    [0] = hit positions tensor shape (n_envs, H, W, 3), [1] = depths.
+    Older versions returned the points array directly. This handles both and
+    flattens the batched (n_envs, H, W, 3) to (N, 3) for points_to_pcd_msg.
+    """
+    data = raycaster.read()
+    # Extract the points array: tensor directly, or tuple/list of tensors.
+    if hasattr(data, "detach"):
+        pts = data
+    elif hasattr(data, "__len__"):
+        pts = data[0]
+    else:
+        pts = data
+    pts = pts.detach().cpu().numpy()
+    if pts.ndim > 2:
+        pts = pts.reshape(-1, 3)
+    return pts
+
+
 def raycaster_to_pcd_msg(
     raycaster, stamp, frame_id, add_noise=False, noise_mean=0.0, noise_std=0.0
 ):
     """Convert Genesis raycaster data to a ROS 2 PointCloud2 message."""
+    pts = _read_raycaster(raycaster)
     if add_noise:
         return points_to_pcd_msg(
-            add_sensor_noise(
-                raycaster.read()[0].detach().cpu().numpy(), noise_mean, noise_std
-            ),
+            add_sensor_noise(pts, noise_mean, noise_std),
             stamp=stamp,
             frame_id=frame_id,
         )
     else:
-        return points_to_pcd_msg(
-            raycaster.read()[0].detach().cpu().numpy(), stamp=stamp, frame_id=frame_id
-        )
+        return points_to_pcd_msg(pts, stamp=stamp, frame_id=frame_id)
 
 
 def grid_raycaster_to_pcd_msg(

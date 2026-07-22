@@ -58,7 +58,9 @@ robots:
           command: velocity
 
     morph:
-      path: "src/gs_ros2_control_demos/urdf/test_diff_drive.xacro.urdf"
+      # Installed share path (stable after colcon build). The original
+      # "src/gs_ros2_control_demos/urdf/..." assumed the README's clone layout.
+      path: "install/gs_ros2_control_demos/share/gs_ros2_control_demos/urdf/test_diff_drive.xacro.urdf"
       pos: [0.0, 0.0, 0.0]
       euler: [0.0, 0.0, 0.0]
       quat: null
@@ -111,7 +113,7 @@ robots:
       far: 10.0
       aperture: 2.8
       denoise: true
-      spp: 256
+      spp: 64
       model: pinhole
       focus_dist: 0.0
       gui: false
