@@ -1,7 +1,7 @@
 from std_msgs.msg import Bool
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectory
-from .gs_ros_utils import get_current_timestamp, get_joint_names, get_dofs_idx
+from .gs_ros_utils import get_current_timestamp, get_joint_names, get_dofs_idx, create_qos_profile
 
 import genesis as gs
 
@@ -281,7 +281,11 @@ class GsRosRobotControl:
             JointState,
             f'{self.namespace}/{self.robot_config.get("joint_commands_topic", "joint_commands")}',
             joint_commands_callback,
-            int(self.robot_config.get("joint_commands_topic_frequency", 50)),
+            create_qos_profile(
+                depth=int(self.robot_config.get("joint_commands_topic_frequency", 50)),
+                reliability="reliable",
+                durability="volatile",
+            ),
         )
         setattr(
             self, f"{self.robot}_joint_commands_subscriber", joint_commands_subscriber
