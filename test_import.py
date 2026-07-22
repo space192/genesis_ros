@@ -24,9 +24,13 @@ def main(args=None):
         config = arg if os.path.isabs(arg) or os.path.sep in arg else os.path.join(_HERE, "configs", arg)
     print(f"[test_import] using config: {config}")
 
-    # gs.metal = Apple GPU (M-series). Use gs.gpu/gs.cuda on Linux+NVIDIA,
-    # gs.cpu as a fallback if Metal has issues.
-    gs.init(backend=gs.metal, logging_level="info", performance_mode=True)
+    # Backend: gs.metal (Apple GPU), gs.cpu (works everywhere, no GPU/GL issues),
+    # gs.gpu/gs.cuda (Linux+NVIDIA). Override via env GS_BACKEND=cpu|metal|gpu.
+    backend = os.environ.get("GS_BACKEND", "metal").lower()
+    backend_map = {"metal": gs.metal, "cpu": gs.cpu, "gpu": gs.gpu, "cuda": gs.cuda}
+    gs_backend = backend_map.get(backend, gs.metal)
+    print(f"[test_import] backend: {backend}")
+    gs.init(backend=gs_backend, logging_level="info", performance_mode=True)
     rclpy.init(args=args)
 
     default_ros_node = Node("gs_ros_bridge_node")
