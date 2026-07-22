@@ -45,24 +45,27 @@ class WorldManagementHandler:
             return response
 
         try:
-            # Determine the entity resource type (URDF, MJCF, or SDF)
+            # Determine the entity resource type (URDF, MJCF, or file mesh)
             if request.entity_resource.uri.endswith(".urdf"):
                 world_morph = gs.morphs.URDF(
                     request.entity_resource.uri,
                     pos=request.initial_pose.position,
-                    rot=SceneManager.xyzw_to_wxyz(request.initial_pose.orientation),
+                    quat=SceneManager.xyzw_to_wxyz(request.initial_pose.orientation),
                 )
             elif request.entity_resource.uri.endswith(".xml"):
                 world_morph = gs.morphs.MJCF(
                     request.entity_resource.uri,
                     pos=request.initial_pose.position,
-                    rot=SceneManager.xyzw_to_wxyz(request.initial_pose.orientation),
+                    quat=SceneManager.xyzw_to_wxyz(request.initial_pose.orientation),
                 )
             else:
-                world_morph = gs.morphs.File(
+                # NOTE: gs.morphs.File was renamed to gs.morphs.FileMorph in
+                # Genesis 1.0+. `rot=` was never a valid kwarg; use `quat=`
+                # (wxyz ordering, which xyzw_to_wxyz already produces).
+                world_morph = gs.morphs.FileMorph(
                     request.entity_resource.uri,
                     pos=request.initial_pose.position,
-                    rot=SceneManager.xyzw_to_wxyz(request.initial_pose.orientation),
+                    quat=SceneManager.xyzw_to_wxyz(request.initial_pose.orientation),
                 )
 
             world = self.scene_manager.scene.add_entity(world_morph)

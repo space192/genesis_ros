@@ -155,7 +155,7 @@ def make_gs_scene(scene_config):
             floor_height=scene_config.get("tool_config", {}).get("floor_height", 0),
         ),
         rigid_options=make_rigid_options(scene_config.get("rigid_config", None)),
-        avatar_options=make_avatar_options(scene_config.get("avatar_config", None)),
+        # NOTE: avatar_options was removed from gs.Scene in Genesis 1.0+.
         mpm_options=make_mpm_options(scene_config.get("mpm_config", None)),
         sph_options=make_sph_options(scene_config.get("sph_config", None)),
         fem_options=make_fem_options(scene_config.get("fem_config", None)),
@@ -178,66 +178,59 @@ def make_gs_scene(scene_config):
 def make_rigid_options(rigid_config):
     if rigid_config is None:
         return None
-    rigid_options = gs.options.RigidOptions(
-        dt=rigid_config.get("dt", None),
-        gravity=rigid_config.get("gravity", None),
-        enable_collision=rigid_config.get("enable_collision", True),
-        enable_joint_limit=rigid_config.get("enable_joint_limit", True),
-        enable_self_collision=rigid_config.get("enable_self_collision", True),
-        enable_adjacent_collision=rigid_config.get("enable_adjacent_collision", False),
-        disable_constraint=rigid_config.get("disable_constraint", False),
-        max_collision_pairs=rigid_config.get("max_collision_pairs", 300),
-        integrator=rigid_config.get(
-            "integrator", gs.integrator.approximate_implicitfast
-        ),
-        IK_max_targets=rigid_config.get("IK_max_targets", 6),
+    # Filter out None values so we don't override 1.2.3's defaults (e.g. dt=None
+    # would make the rigid solver fail dt/substeps; gravity=None is fine).
+    rc = rigid_config
+    rigid_kwargs = dict(
+        enable_collision=rc.get("enable_collision", True),
+        enable_joint_limit=rc.get("enable_joint_limit", True),
+        enable_self_collision=rc.get("enable_self_collision", True),
+        enable_adjacent_collision=rc.get("enable_adjacent_collision", False),
+        disable_constraint=rc.get("disable_constraint", False),
+        max_collision_pairs=rc.get("max_collision_pairs", 300),
+        integrator=rc.get("integrator", gs.integrator.approximate_implicitfast),
+        IK_max_targets=rc.get("IK_max_targets", 6),
         # batching info
-        batch_links_info=rigid_config.get("batch_links_info", False),
-        batch_joints_info=rigid_config.get("batch_joints_info", False),
-        batch_dofs_info=rigid_config.get("batch_dofs_info", False),
+        batch_links_info=rc.get("batch_links_info", False),
+        batch_joints_info=rc.get("batch_joints_info", False),
+        batch_dofs_info=rc.get("batch_dofs_info", False),
         # constraint solver
-        constraint_solver=rigid_config.get(
-            "constraint_solver", gs.constraint_solver.Newton
-        ),
-        iterations=rigid_config.get("iterations", 50),
-        tolerance=rigid_config.get("tolerance", 1e-8),
-        ls_iterations=rigid_config.get("ls_iterations", 50),
-        ls_tolerance=rigid_config.get("ls_tolerance", 1e-2),
-        sparse_solve=rigid_config.get("sparse_solve", False),
-        contact_resolve_time=rigid_config.get("contact_resolve_time", None),
-        constraint_timeconst=rigid_config.get("constraint_timeconst", 0.01),
-        use_contact_island=rigid_config.get("use_contact_island", False),
-        box_box_detection=rigid_config.get("box_box_detection", False),
+        constraint_solver=rc.get("constraint_solver", gs.constraint_solver.Newton),
+        iterations=rc.get("iterations", 50),
+        tolerance=rc.get("tolerance", 1e-8),
+        ls_iterations=rc.get("ls_iterations", 50),
+        ls_tolerance=rc.get("ls_tolerance", 1e-2),
+        sparse_solve=rc.get("sparse_solve", False),
+        # NOTE: contact_resolve_time was removed in Genesis 1.0+.
+        constraint_timeconst=rc.get("constraint_timeconst", 0.01),
+        use_contact_island=rc.get("use_contact_island", False),
+        box_box_detection=rc.get("box_box_detection", False),
         # hibernation threshold
-        use_hibernation=rigid_config.get("use_hibernation", False),
-        hibernation_thresh_vel=rigid_config.get("hibernation_thresh_vel", 1e-3),
-        hibernation_thresh_acc=rigid_config.get("hibernation_thresh_acc", 1e-2),
+        use_hibernation=rc.get("use_hibernation", False),
+        hibernation_thresh_vel=rc.get("hibernation_thresh_vel", 1e-3),
+        # NOTE: hibernation_thresh_acc was removed in Genesis 1.0+.
         # dynamic properties
-        max_dynamic_constraints=rigid_config.get("max_dynamic_constraints", 8),
+        max_dynamic_constraints=rc.get("max_dynamic_constraints", 8),
         # experimental/debug options
-        enable_multi_contact=rigid_config.get("enable_multi_contact", True),
-        enable_mujoco_compatibility=rigid_config.get(
-            "enable_mujoco_compatibility", False
-        ),
+        enable_multi_contact=rc.get("enable_multi_contact", True),
+        enable_mujoco_compatibility=rc.get("enable_mujoco_compatibility", False),
         # GJK collision detection
-        use_gjk_collision=rigid_config.get("use_gjk_collision", False),
+        use_gjk_collision=rc.get("use_gjk_collision", False),
     )
+    # Only pass dt/gravity if explicitly set; None breaks the 1.2.3 solver
+    # (dt/substeps division, and gravity arr.flags access in _init_mass_mat).
+    for opt_key in ("dt", "gravity"):
+        if rc.get(opt_key) is not None:
+            rigid_kwargs[opt_key] = rc[opt_key]
+    rigid_options = gs.options.RigidOptions(**rigid_kwargs)
     return rigid_options
 
 
 def make_avatar_options(avatar_config):
-    if avatar_config is None:
-        return None
-    avatar_options = gs.options.AvatarOptions(
-        dt=avatar_config.get("dt", None),
-        enable_collision=avatar_config.get("enable_collision", False),
-        enable_self_collision=avatar_config.get("enable_self_collision", False),
-        enable_adjacent_collision=avatar_config.get("enable_adjacent_collision", False),
-        max_collision_pairs=avatar_config.get("max_collision_pairs", 300),
-        IK_max_targets=avatar_config.get("IK_max_targets", 6),
-        max_dynamic_constraints=avatar_config.get("max_dynamic_constraints", 8),
-    )
-    return avatar_options
+    # NOTE: gs.options.AvatarOptions was removed in Genesis 1.0+. Avatar
+    # entities are no longer a separate option class; gs.Scene accepts
+    # avatar_options=None, so we just return None here. Config is ignored.
+    return None
 
 
 def make_mpm_options(mpm_config):
@@ -356,12 +349,12 @@ def make_viewer_options(viewer_config):
         res=viewer_config.get("res", None),
         run_in_thread=viewer_config.get("run_in_thread", None),
         refresh_rate=viewer_config.get("refresh_rate", 60),
-        max_FPS=viewer_config.get("max_FPS", 60),
+        # NOTE: max_FPS is deprecated in Genesis 1.0+ (use refresh_rate).
         camera_pos=viewer_config.get("camera_pos", (3.5, 0.5, 2.5)),
         camera_lookat=viewer_config.get("camera_lookat", (0.0, 0.0, 0.5)),
         camera_up=viewer_config.get("camera_up", (0.0, 0.0, 1.0)),
         camera_fov=viewer_config.get("camera_fov", 40),
-        enable_interaction=viewer_config.get("enable_interaction", False),
+        # NOTE: enable_interaction was removed in Genesis 1.0+.
     )
     return viewer_options
 
@@ -388,7 +381,7 @@ def make_vis_options(vis_config):
         particle_size_scale=vis_config.get("particle_size_scale", 1.0),
         contact_force_scale=vis_config.get("contact_force_scale", 0.01),
         n_support_neighbors=vis_config.get("n_support_neighbors", 12),
-        n_rendered_envs=vis_config.get("n_rendered_envs", None),
+        # NOTE: n_rendered_envs was removed in Genesis 1.0+ (use rendered_envs_idx).
         rendered_envs_idx=vis_config.get("rendered_envs_idx", None),
         lights=vis_config.get(
             "lights",
@@ -506,7 +499,7 @@ def make_terrain(terrain_config):
         )
     elif type == "terrain":
         return gs.morphs.Terrain(
-            file=terrain_config.get("file", ""),
+            # NOTE: `file` was removed from Terrain in Genesis 1.0+.
             scale=terrain_config.get(
                 "scale", 1.0
             ),  # Can also be a tuple, but defaults to 1.0 for uniform scaling

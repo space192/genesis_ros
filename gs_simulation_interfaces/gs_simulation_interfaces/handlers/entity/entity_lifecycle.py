@@ -62,27 +62,30 @@ class EntityLifecycleHandler:
             return response
 
         try:
-            # Determine the entity resource type (URDF, MJCF, or SDF)
+            # Determine the entity resource type (URDF, MJCF, or file mesh)
             if request.entity_resource.uri.endswith(".urdf"):
                 entity_morph = gs.morphs.URDF(
                     request.entity_resource.uri,
                     pos=request.initial_pose.position,
-                    rot=SceneManager.xyzw_to_wxyz(request.initial_pose.orientation),
+                    quat=SceneManager.xyzw_to_wxyz(request.initial_pose.orientation),
                 )
             elif request.entity_resource.uri.endswith(".xml"):
                 entity_morph = gs.morphs.MJCF(
                     request.entity_resource.uri,
                     pos=request.initial_pose.position,
-                    rot=SceneManager.xyzw_to_wxyz(request.initial_pose.orientation),
+                    quat=SceneManager.xyzw_to_wxyz(request.initial_pose.orientation),
                 )
             else:
-                entity_morph = gs.morphs.SDF(
+                # NOTE: gs.morphs.SDF was removed in Genesis 1.0+. Use
+                # FileMorph for mesh files. `rot=` -> `quat=` (wxyz).
+                entity_morph = gs.morphs.FileMorph(
                     request.entity_resource.uri,
                     pos=request.initial_pose.position,
-                    rot=SceneManager.xyzw_to_wxyz(request.initial_pose.orientation),
+                    quat=SceneManager.xyzw_to_wxyz(request.initial_pose.orientation),
                 )
 
-            entity = self.scene_manager.scene.add_Entity(entity_morph)
+            # NOTE: add_Entity (capital E) is not a method; use add_entity.
+            entity = self.scene_manager.scene.add_entity(entity_morph)
 
         except Exception as e:
             response.result.result = self.UNSUPPORTED_FORMAT

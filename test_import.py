@@ -2,10 +2,22 @@ from gs_ros import GsRosBridge
 import rclpy
 from rclpy.node import Node
 import genesis as gs
+import os
+
+
+# Resolve the config path relative to THIS file so it works regardless of the
+# current working directory. The original script used "src/configs/panda_demo.yaml",
+# which assumes the bridge is cloned directly into <workspace>/src (the README's
+# layout). In this repo the bridge is a submodule at src/genesis_ros/, so the
+# config lives next to this script in configs/.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+PANDA_CONFIG = os.path.join(_HERE, "configs", "panda_demo.yaml")
 
 
 def main(args=None):
-    gs.init(logging_level="info", performance_mode=True)
+    # gs.metal = Apple GPU (M-series). Use gs.gpu/gs.cuda on Linux+NVIDIA,
+    # gs.cpu as a fallback if Metal has issues.
+    gs.init(backend=gs.metal, logging_level="info", performance_mode=True)
     rclpy.init(args=args)
 
     default_ros_node = Node("gs_ros_bridge_node")
@@ -15,7 +27,7 @@ def main(args=None):
     # if the default_ros_node is used for everything you may experience bottlenecks
     gs_ros_bridge = GsRosBridge(
         default_ros_node,
-        "src/configs/panda_demo.yaml",
+        PANDA_CONFIG,
         add_debug_objects=False,
         enable_simulation_interfaces=True,
     )
