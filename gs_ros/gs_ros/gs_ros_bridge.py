@@ -191,10 +191,20 @@ class GsRosBridge:
                 self.scene_manager.scene, self.scene_manager.time_offset
             )
         if rclpy.ok():
-            for ros_node in self.all_nodes_to_spin:
-                rclpy.spin_once(ros_node, timeout_sec=0)
+            # Spin ROS nodes, but don't let a service/topic callback exception
+            # crash the whole sim - log and keep stepping. rclpy.spin_once
+            # re-raises any exception thrown inside a callback.
+            nodes = list(self.all_nodes_to_spin)
             if hasattr(self, "simulation_interface"):
-                rclpy.spin_once(self.simulation_interface, timeout_sec=0)
+                nodes.append(self.simulation_interface)
+            for ros_node in nodes:
+                try:
+                    rclpy.spin_once(ros_node, timeout_sec=0)
+                except Exception as e:
+                    gs.logger.warning(
+                        f"Ignoring exception in ROS callback for "
+                        f"{getattr(ros_node, 'get_name', lambda: '?')()}: {e}"
+                    )
 
     def initialise_robots(self):
         """Dynamically initialize robot control and sensors for newly spawned robots."""

@@ -17,6 +17,7 @@ import numpy as np
 from .gs_ros_utils import (
     ros_quat_to_gs_quat,
     gs_quat_to_ros_quat,
+    ros_point_to_array,
     quat_angle_difference,
     get_entity,
     get_links_idx,
@@ -65,7 +66,7 @@ class GsRosServices:
                     )
                     return response
             try:
-                entity.set_pos(request.pose.position)
+                entity.set_pos(ros_point_to_array(request.pose.position))
                 entity.set_quat(ros_quat_to_gs_quat(request.pose.orientation))
                 response.success = True
                 response.message = "Entity Moved to the requested position"
@@ -115,7 +116,7 @@ class GsRosServices:
         """Setup inverse kinematics service for robot links."""
         gs.logger.info("Setting up Ik service")
 
-        def ik_service_callback(self, request, response):
+        def ik_service_callback(request, response):
             response.success = False
             if request.robot_name is None:
                 response.success = False
@@ -140,11 +141,24 @@ class GsRosServices:
                     response.message = "Link not found in robot"
                     return response
             try:
+                # Genesis's IK expects batched targets when n_envs > 0: pos shape
+                # (n_envs, 3), quat shape (n_envs, 4). Expand the single ROS target
+                # to match the solver's batch dimension.
+                ik_pos = ros_point_to_array(request.position)
+                ik_quat = ros_quat_to_gs_quat(request.orientation)
+                n_envs = getattr(robot, "_solver", None)
+                n_envs = n_envs.n_envs if n_envs is not None else 1
+                if n_envs > 0:
+                    ik_pos = np.broadcast_to(ik_pos, (n_envs, 3)).copy()
+                    ik_quat = np.broadcast_to(ik_quat, (n_envs, 4)).copy()
                 target_qpos, error = robot.inverse_kinematics(
                     link=target_link,
-                    pos=request.position,
-                    quat=ros_quat_to_gs_quat(request.orientation),
-                    init_qpos=request.init_robot_pos,
+                    pos=ik_pos,
+                    quat=ik_quat,
+                    # init_qpos must be None (use current qpos) or a full
+                    # (n_dofs,) array. An empty list [] becomes shape (0,)
+                    # and fails validation, so coerce empty -> None.
+                    init_qpos=request.init_robot_pos or None,
                     respect_joint_limit=request.request_joint_limit,
                     max_samples=request.max_samples,
                     max_solver_iters=request.max_solver_iterartions,
@@ -154,13 +168,14 @@ class GsRosServices:
                     pos_mask=request.pos_mask,
                     rot_mask=request.rot_mask,
                     max_step_size=request.max_step_size,
-                    dofs_idx_local=request.dofs_idx_local,
+                    # Empty list -> None (use all dofs) to avoid (0,) shape errors.
+                    dofs_idx_local=request.dofs_idx_local or None,
                     return_error=True,
                 )
             except Exception as e:
                 response.success = False
                 response.message = str(e)
-                return
+                return response
             if target_qpos is None or error is None:
                 response.solution_found = False
                 response.message = "IK solution not found found"
@@ -170,7 +185,13 @@ class GsRosServices:
                 response.target_error = error
                 response.message = "IK solution found"
                 if request.visualize:
-                    pose_debug = self.scene.draw_debug_frame(request.pos, request.quat)
+                    # draw_debug_frame expects a 4x4 transform T. Build it from
+                    # the target position + orientation (ROS xyzw -> gs wxyz).
+                    import genesis as _gs
+                    _pos = ros_point_to_array(request.position)
+                    _quat = ros_quat_to_gs_quat(request.orientation)
+                    _T = _gs.trans_quat_to_T(_quat, _pos)
+                    pose_debug = self.scene.draw_debug_frame(_T)
                 if request.execute == True:
                     try:
                         robot.control_dofs_position(target_qpos)
@@ -180,10 +201,14 @@ class GsRosServices:
                         return response
                     eef_pos = robot.get_links_pos(target_link.idx_local)
                     eef_quat = robot.get_links_quat(target_link.idx_local)
-                    pos_error_norm = np.linalg.norm(eef_pos - request.position)
-                    quat_error_norm = quat_angle_difference(
-                        eef_quat - ros_quat_to_gs_quat(request.orientation)
-                    )
+                    # get_links_pos/quat return batched (n_envs, ...) arrays;
+                    # squeeze the batch dim for single-env comparison.
+                    eef_pos = np.asarray(eef_pos).reshape(-1)
+                    eef_quat = np.asarray(eef_quat).reshape(-1)
+                    target_pos = ros_point_to_array(request.position)
+                    target_quat = ros_quat_to_gs_quat(request.orientation)
+                    pos_error_norm = float(np.linalg.norm(eef_pos - target_pos))
+                    quat_error_norm = quat_angle_difference(eef_quat, target_quat)
                     if (
                         pos_error_norm < request.pos_tol
                         and quat_error_norm < request.rot_tol
@@ -209,7 +234,7 @@ class GsRosServices:
         """Setup forward kinematics service for robot links."""
         gs.logger.info("Setting up FK service")
 
-        def fk_service_callback(self, request, response):
+        def fk_service_callback(request, response):
             if request.robot_name is None:
                 response.success = False
                 response.message = "Robot name must be given"
@@ -272,7 +297,7 @@ class GsRosServices:
         """Setup motion planning service for robots."""
         gs.logger.info("Setting up PathPlanTarget service")
 
-        def plan_path_callback(self, request, response):
+        def plan_path_callback(request, response):
             if request.robot_name is None:
                 response.success = False
                 response.message = "Robot name must be given"
@@ -354,7 +379,7 @@ class GsRosServices:
         """Setup service to enable/disable weld constraints (suction simulation)."""
         gs.logger.info("Setting up SuctionSwitch service")
 
-        def suction_cup_switch_callback(self, request, response):
+        def suction_cup_switch_callback(request, response):
             if (
                 len(request.entity_one) <= 0
                 or len(request.entity_one) <= 0
@@ -406,7 +431,7 @@ class GsRosServices:
         """Setup service to link two entities together."""
         gs.logger.info("Setting up JoinEntities service")
 
-        def join_entities_callback(self, request, response):
+        def join_entities_callback(request, response):
             if (
                 len(request.entity_one) <= 0
                 or len(request.entity_one) <= 0
@@ -463,7 +488,7 @@ class GsRosServices:
         """Setup service to start video recording from a camera."""
         gs.logger.info("Setting up StartRecording service")
 
-        def start_recording_callback(self, request, response):
+        def start_recording_callback(request, response):
             if (
                 request.camera_name is None
                 or len(request.camera_name) == 0
@@ -512,7 +537,7 @@ class GsRosServices:
         """Setup service to pause active video recording."""
         gs.logger.info("Setting up PauseRecording service")
 
-        def pause_recording_callback(self, request, response):
+        def pause_recording_callback(request, response):
             if (
                 request.camera_name is None
                 or len(request.camera_name) == 0
@@ -559,7 +584,7 @@ class GsRosServices:
         """Setup service to stop recording and save the video file."""
         gs.logger.info("Setting up StopRecording service")
 
-        def stop_recording_callback(self, request, response):
+        def stop_recording_callback(request, response):
             if (
                 request.camera_name is None
                 or len(request.camera_name) == 0
@@ -597,7 +622,7 @@ class GsRosServices:
         """Setup service to modify joint-level physics parameters (KP, KV, etc.)."""
         gs.logger.info("Setting up SetDofsPhysicsAttributes service")
 
-        def set_dofs_physics_attr_callback(self, request, response):
+        def set_dofs_physics_attr_callback(request, response):
             if request.robot_name is None:
                 response.success = False
                 response.message = "Robot name must be given"
@@ -670,7 +695,7 @@ class GsRosServices:
         """Setup service to modify link-level physics parameters (mass, inertia)."""
         gs.logger.info("Setting up SetLinksPhysicsAttributes service")
 
-        def set_links_physics_attr_callback(self, request, response):
+        def set_links_physics_attr_callback(request, response):
             if request.robot_name is None:
                 response.success = False
                 response.message = "Robot name must be given"

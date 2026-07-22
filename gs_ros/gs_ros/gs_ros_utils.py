@@ -1,6 +1,7 @@
 import genesis as gs
 import numpy as np
 from builtin_interfaces.msg import Time
+from geometry_msgs.msg import Quaternion
 
 from rclpy.qos import (
     QoSProfile,
@@ -128,13 +129,42 @@ def get_joint_names(robot):
 
 
 def ros_quat_to_gs_quat(input_quat):
-    input_quat[0], input_quat[1:3] = input_quat[3], input_quat[:2]
-    return input_quat
+    """Convert a ROS quaternion to a Genesis quaternion.
+
+    ROS convention: (x, y, z, w). Genesis convention: (w, x, y, z).
+    Accepts either a ROS geometry_msgs/Quaternion message (with .x/.y/.z/.w
+    attributes) or an indexable sequence [x, y, z, w]. Returns a numpy array
+    in Genesis (w, x, y, z) order.
+    """
+    if hasattr(input_quat, "x") and hasattr(input_quat, "w"):
+        # ROS geometry_msgs/Quaternion message
+        x, y, z, w = input_quat.x, input_quat.y, input_quat.z, input_quat.w
+    else:
+        # Indexable: [x, y, z, w]
+        x, y, z, w = input_quat[0], input_quat[1], input_quat[2], input_quat[3]
+    return np.array([w, x, y, z])
 
 
 def gs_quat_to_ros_quat(input_quat):
-    input_quat[3], input_quat[:2] = input_quat[0], input_quat[1:3]
-    return input_quat
+    """Convert a Genesis quaternion to a ROS geometry_msgs/Quaternion.
+
+    Genesis convention: (w, x, y, z). ROS convention: (x, y, z, w).
+    input_quat may be a numpy array or indexable sequence in Genesis order.
+    Returns a ROS Quaternion message.
+    """
+    w, x, y, z = input_quat[0], input_quat[1], input_quat[2], input_quat[3]
+    return Quaternion(x=float(x), y=float(y), z=float(z), w=float(w))
+
+
+def ros_point_to_array(point):
+    """Convert a ROS geometry_msgs/Point to a numpy array [x, y, z].
+
+    Genesis methods expect numpy arrays (they call .shape / arithmetic on
+    the input), so a raw Point message can't be passed directly.
+    """
+    if hasattr(point, "x") and hasattr(point, "z"):
+        return np.array([point.x, point.y, point.z])
+    return np.asarray(point)
 
 
 def make_gs_scene(scene_config):

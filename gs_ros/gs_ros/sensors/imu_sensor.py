@@ -54,9 +54,7 @@ class ImuSensor(BaseSensor):
                 quat = gs_quat_to_ros_quat(
                     robot.get_quat().detach().cpu().numpy().tolist()[0]
                 )
-                imu_msg.orientation = Quaternion(
-                    x=quat[0], y=quat[1], z=quat[2], w=quat[3]
-                )
+                imu_msg.orientation = quat
                 ang_vel = data.ang_vel.detach().cpu().numpy().tolist()[0]
                 imu_msg.angular_velocity = Vector3(
                     x=ang_vel[0], y=ang_vel[1], z=ang_vel[2]
